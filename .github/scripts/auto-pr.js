@@ -55,7 +55,9 @@ async function checkRequests({github, context}, io = {}) {
     const {data:pr} = await github.rest.pulls.get({...repo,pull_number:number});
     if (pr.state !== 'open' || pr.draft) continue;
     if (context.eventName === 'issue_comment' && context.payload.comment.user.login !== pr.user.login && !['OWNER','MEMBER','COLLABORATOR'].includes(context.payload.comment.author_association)) continue;
+    // The apply job merges with the checks token; a fork head cannot be reached from upstream main, so refuse it before any merge attempt.
     const result = {number,head:pr.head.sha,passed:false,message:''};
+    if (pr.head.repo?.full_name !== `${repo.owner}/${repo.repo}`) { result.message='这个提交来自仓库副本，无法在原始仓库自动合并。请在你的副本同步最新 main 后再提交到原始仓库，或直接联系我们处理。'; results.push(result); continue; }
     try {
       const {data:files} = await github.rest.pulls.listFiles({...repo,pull_number:number,per_page:2});
       if (files.length !== 1 || pr.changed_files !== 1) throw Error('每个 PR 请只修改一份友链/赞助 JSON。');

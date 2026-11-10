@@ -25,6 +25,12 @@ test('remove requires DNS ownership but no backlink; merge pins SHA and ignores 
  const result={number:96,head:sha,passed:true,message:'pass'};await applyResults({github,context:{repo:{owner:'o',repo:'r'}}},[result]);assert.equal(calls[0].sha,sha);
  sha='b'.repeat(40);await applyResults({github,context:{repo:{owner:'o',repo:'r'}}},[result]);assert.equal(calls.length,1);
 });
+test('fork PRs are refused before merge; the error is a fixed message, never a live token or API dump',async()=>{
+ const {checkRequests}=require('../.github/scripts/auto-pr.js');
+ const logs=[];const github={rest:{pulls:{get:async()=>({data:{state:'open',draft:false,changed_files:1,head:{sha:'a'.repeat(40),repo:{full_name:'someone/fork'}}}}),listFiles:async()=>({data:[{filename:'data/friends/x.json',status:'added'}]}),merge:async()=>{throw Error('network must not be touched');},list:async()=>({data:[]})},repos:{getContent:async()=>({data:{content:Buffer.from('{}').toString('base64'),type:'file',size:2}})}}};
+ const results=await checkRequests({github,context:{repo:{owner:'o',repo:'r'},eventName:'pull_request_target',payload:{pull_request:{number:96}}}},{ownership:async()=>true,check:async()=>({ok:true})});
+ assert.equal(results.length,1);assert.equal(results[0].passed,false);assert(/副本/.test(results[0].message));assert(!/bearer|redacted/.test(results[0].message));
+});
 test('network/browser checks and write credentials are in separate trusted jobs',()=>{
  const source=fs.readFileSync('.github/workflows/auto-pr.yml','utf8');
  const check=source.split('  check:')[1].split('  apply:')[0],apply=source.split('  apply:')[1];
